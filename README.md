@@ -570,7 +570,7 @@ The final working tree should be clean before submission.
 
 ## Author
 
-Siraj Uddin
+Sirajuddin Shaik
 
 ## License
 
