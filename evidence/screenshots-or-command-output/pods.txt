@@ -1,0 +1,4 @@
+NAME                        READY   STATUS    RESTARTS   AGE    IP           NODE                    NOMINATED NODE   READINESS GATES
+flask-app-6878c6b95-88rvt   1/1     Running   0          110s   10.244.1.6   flask-cluster-worker2   <none>           <none>
+flask-app-6878c6b95-bmltn   1/1     Running   0          85s    10.244.1.7   flask-cluster-worker2   <none>           <none>
+flask-app-6878c6b95-mszvx   1/1     Running   0          98s    10.244.2.8   flask-cluster-worker    <none>           <none>
