@@ -1,21 +1,70 @@
 # Flask Sample App — Docker & Kubernetes Distributed Systems
 
-A containerized Flask REST API demonstrating Docker, Docker Compose, Docker Hub, Kubernetes, Kind, security hardening, service discovery, scaling, self-healing, rolling updates, and rollback.
+## 1. Project Objective
 
-## Project Overview
+This project takes the original Flask starter application and demonstrates how to containerize, secure, publish, and deploy it as a distributed application using Docker and Kubernetes.
 
-This project uses a simple Flask application that provides a REST API for managing a list of items.
+The project demonstrates:
 
-The application exposes:
+* Flask REST API development
+* Docker image creation and security hardening
+* Docker Compose
+* Docker Hub publication
+* Kubernetes deployment using Kind
+* Kubernetes Service discovery
+* Multiple replicas
+* Self-healing
+* Horizontal scaling
+* Rolling updates
+* Rollback
+* Container and Kubernetes security
+* Vulnerability scanning
+* Software Bill of Materials (SBOM)
 
-* `GET /` — Returns a greeting message.
-* `GET /items` — Returns all items.
-* `GET /items/<item_id>` — Returns a specific item.
-* `POST /items` — Adds an item.
+## 2. Architecture Overview
 
-The application runs on port `5000`.
+The application is a Flask REST API running on port `5000`.
 
-## Project Structure
+```text
+                    Docker Hub
+                        |
+                        v
+              Flask Docker Image
+              1.0.0 / latest
+                        |
+                        v
+              +-------------------+
+              |   Kind Cluster    |
+              |                   |
+              | Control Plane     |
+              |        |          |
+              |  +-----+------+   |
+              |  |            |   |
+              | Worker 1   Worker 2
+              |  |            |   |
+              | Flask Pods  Flask Pods
+              |  +-----+------+   |
+              |        |          |
+              |   Kubernetes      |
+              |     Service       |
+              +--------+----------+
+                       |
+                       v
+                  Flask API
+                   Port 5000
+```
+
+The final Kubernetes deployment uses three Flask replicas distributed across the two worker nodes.
+
+## 3. Original Starter Application
+
+This project was based on the original public Flask starter application:
+
+https://github.com/ubc/flask-sample-app
+
+The starter repository contains the original Flask application, tests, `requirements.txt`, `run.py`, and the original README.
+
+## 4. Project Structure
 
 ```text
 flask-sample-app/
@@ -30,14 +79,6 @@ flask-sample-app/
 │
 ├── evidence/
 │   └── screenshots-or-command-output/
-│       ├── deployment-security.yaml
-│       ├── deployment.txt
-│       ├── final-image.txt
-│       ├── kind-nodes.txt
-│       ├── network-policy.txt
-│       ├── pods.txt
-│       ├── rollout-history.txt
-│       └── service.txt
 │
 ├── k8s/
 │   ├── deployment.yaml
@@ -62,18 +103,20 @@ flask-sample-app/
 └── run.py
 ```
 
-## Requirements
+## 5. Prerequisites
 
-The project requires:
+Install the following tools:
 
 * Python
 * Docker Desktop
 * Docker Compose
+* Git
 * kubectl
 * Kind
-* Git
 
-## Run Locally
+The Docker Desktop engine must be running for Docker and Kind operations.
+
+## 6. Run the Original Application Locally
 
 Create a virtual environment:
 
@@ -81,7 +124,7 @@ Create a virtual environment:
 python -m venv venv
 ```
 
-Activate it on Windows:
+On Windows, activate it:
 
 ```powershell
 .\venv\Scripts\Activate.ps1
@@ -105,32 +148,12 @@ The application runs on:
 http://localhost:5000
 ```
 
-## Run Tests
+### Test the application
 
-Run the application tests with:
+Open:
 
-```bash
-python -m unittest discover tests
-```
-
-## Docker
-
-### Build the Image
-
-```bash
-docker build -t flask-sample-app:1.0.0 .
-```
-
-### Run the Container
-
-```bash
-docker run -d --name flask-sample-app -p 5000:5000 flask-sample-app:1.0.0
-```
-
-Verify the application:
-
-```bash
-curl http://localhost:5000/
+```text
+http://localhost:5000/
 ```
 
 Expected response:
@@ -139,11 +162,72 @@ Expected response:
 Hello, Flask!
 ```
 
+Test the items endpoint:
+
+```text
+http://localhost:5000/items
+```
+
+Expected initial response:
+
+```json
+{"items":[]}
+```
+
+### Run the tests
+
+```bash
+python -m unittest discover tests
+```
+
+## 7. Application Routes
+
+| Method | Endpoint           | Description             |
+| ------ | ------------------ | ----------------------- |
+| GET    | `/`                | Returns `Hello, Flask!` |
+| GET    | `/items`           | Returns all items       |
+| GET    | `/items/<item_id>` | Returns a specific item |
+| POST   | `/items`           | Adds a new item         |
+
+## 8. Build and Run the Docker Image
+
+Build the image:
+
+```bash
+docker build -t flask-sample-app:1.0.0 .
+```
+
+Run the container:
+
+```bash
+docker run -d \
+  --name flask-sample-app \
+  -p 5000:5000 \
+  flask-sample-app:1.0.0
+```
+
 Check the container:
 
 ```bash
 docker ps
+```
+
+Check logs:
+
+```bash
 docker logs flask-sample-app
+```
+
+Test the application:
+
+```text
+http://localhost:5000/
+```
+
+Expected:
+
+```text
+Hello, Flask!
 ```
 
 Check the health status:
@@ -152,26 +236,16 @@ Check the health status:
 docker inspect --format "{{.State.Health.Status}}" flask-sample-app
 ```
 
-The container is configured with a Docker healthcheck.
+Expected:
 
-### Docker Security
+```text
+healthy
+```
 
-The Docker image uses:
-
-* Python slim base image
-* A dedicated non-root `appuser`
-* `USER appuser`
-* `no-new-privileges`
-* All Linux capabilities dropped in Compose
-* Read-only root filesystem in Compose
-* Temporary filesystem for `/tmp`
-* Minimal application files copied into the image
-* `.dockerignore` to exclude development files and artifacts
-
-Verify the runtime user:
+Verify the container runs as a non-root user:
 
 ```bash
-docker run --rm flask-sample-app:1.0.0 whoami
+docker exec flask-sample-app whoami
 ```
 
 Expected:
@@ -180,9 +254,24 @@ Expected:
 appuser
 ```
 
-## Docker Compose
+### Docker image inspection
 
-Start the application with:
+```bash
+docker images flask-sample-app
+docker history flask-sample-app:1.0.0
+docker inspect --format "{{json .Config.ExposedPorts}}" flask-sample-app:1.0.0
+```
+
+The image was approximately:
+
+```text
+Disk usage: 185 MB
+Content size: 44.9 MB
+```
+
+## 9. Docker Compose
+
+Start the application:
 
 ```bash
 docker compose up -d --build
@@ -196,15 +285,20 @@ docker compose ps
 
 The Compose configuration includes:
 
-* Application build configuration
 * Port mapping `5000:5000`
 * Restart policy
-* Environment variables
 * Healthcheck
 * `no-new-privileges`
-* Dropped capabilities
+* Dropped Linux capabilities
 * Read-only root filesystem
 * `/tmp` tmpfs
+* Non-secret environment variables
+
+Test the application:
+
+```text
+http://localhost:5000/
+```
 
 Stop the application:
 
@@ -212,81 +306,102 @@ Stop the application:
 docker compose down
 ```
 
-## Image Inspection
+## 10. Docker Security
 
-Inspect the image history:
+The Docker image and Compose configuration use several security controls.
 
-```bash
-docker history flask-sample-app:1.0.0
-```
+### Non-root execution
 
-Inspect exposed ports:
-
-```bash
-docker inspect --format "{{json .Config.ExposedPorts}}" flask-sample-app:1.0.0
-```
-
-The application exposes only:
+The image creates and uses:
 
 ```text
-5000/tcp
+appuser
 ```
 
-## Vulnerability Scanning and SBOM
+Verify:
 
-The container image was scanned using Trivy.
+```bash
+docker run --rm flask-sample-app:1.0.0 whoami
+```
 
-The scan results are stored in:
+### Other security controls
+
+* Python slim base image
+* Dedicated non-root user
+* `no-new-privileges:true`
+* All Linux capabilities dropped in Compose
+* Read-only root filesystem
+* Temporary `/tmp` filesystem
+* No privileged mode
+* No Docker socket mounting
+* No host networking
+* `.dockerignore` removes development files and artifacts from the runtime image
+
+## 11. Vulnerability Scan and SBOM
+
+The image was scanned using Trivy.
+
+The scan is stored at:
 
 ```text
 security/vulnerability-scan.txt
 ```
 
-The generated CycloneDX SBOM is stored in:
+The CycloneDX SBOM is stored at:
 
 ```text
 security/sbom.cdx.json
 ```
 
-The scan should be reviewed together with the recorded severity counts in the security evidence. The presence of reported vulnerabilities does not mean the image is vulnerability-free; the scan results document the identified findings and their severity.
+### Recorded scan results
 
-## Docker Hub
+| Component       | Total | Unknown | Low | Medium | High | Critical |
+| --------------- | ----: | ------: | --: | -----: | ---: | -------: |
+| Base/OS         |   152 |       2 |  57 |     49 |   44 |        0 |
+| Python packages |     6 |       0 |   1 |      5 |    0 |        0 |
 
-The published Docker image is:
+The image therefore had no critical base/OS findings and no high or critical Python package findings in the recorded scan. The remaining findings are documented in the scan output.
+
+A test using `python:3.12-slim-bookworm` produced a higher number of findings, including critical findings, so that base-image variant was not retained.
+
+## 12. Docker Hub
+
+The public Docker Hub repository is:
+
+https://hub.docker.com/r/sirajuddin147/flask-sample-app
+
+Repository:
 
 ```text
-siraj-tech147/flask-sample-app
+sirajuddin147/flask-sample-app
 ```
 
-Available tags include:
+Published tags:
 
 ```text
 1.0.0
 latest
 ```
 
-The Kubernetes deployment uses the documented versioned image:
+Pull the versioned image:
+
+```bash
+docker pull sirajuddin147/flask-sample-app:1.0.0
+```
+
+Run it:
+
+```bash
+docker run -d \
+  --name flask-hub-test \
+  -p 5001:5000 \
+  sirajuddin147/flask-sample-app:1.0.0
+```
+
+Test:
 
 ```text
-siraj-tech147/flask-sample-app:1.0.0
-```
-
-Pull the image with:
-
-```bash
-docker pull siraj-tech147/flask-sample-app:1.0.0
-```
-
-Run the Docker Hub image:
-
-```bash
-docker run -d --name flask-hub-test -p 5001:5000 siraj-tech147/flask-sample-app:1.0.0
-```
-
-Verify:
-
-```bash
-curl http://localhost:5001/
+http://localhost:5001/
 ```
 
 Clean up:
@@ -296,9 +411,9 @@ docker stop flask-hub-test
 docker rm flask-hub-test
 ```
 
-## Kubernetes with Kind
+## 13. Create the Kind Cluster
 
-The project uses a three-node Kind cluster:
+The Kind configuration creates:
 
 * 1 control-plane node
 * 2 worker nodes
@@ -309,55 +424,50 @@ Create the cluster:
 kind create cluster --config kind/kind-config.yaml
 ```
 
-Verify the nodes:
+Verify:
 
 ```bash
 kubectl get nodes -o wide
 ```
 
-## Kubernetes Namespace
+Expected architecture:
 
-Create the application namespace:
+```text
+flask-cluster-control-plane
+flask-cluster-worker
+flask-cluster-worker2
+```
+
+## 14. Deploy Kubernetes Manifests
+
+Create the namespace:
 
 ```bash
 kubectl apply -f k8s/namespace.yaml
 ```
 
-Verify:
-
-```bash
-kubectl get namespace flask-app
-```
-
-## Kubernetes Deployment
-
-Apply the Deployment:
+Deploy the application:
 
 ```bash
 kubectl apply -f k8s/deployment.yaml
 ```
 
-The Deployment provides:
+Create the Service:
 
-* 3 application replicas in the final state
-* RollingUpdate strategy
-* CPU and memory requests
-* CPU and memory limits
-* Readiness probe
-* Liveness probe
-* Non-root execution
-* `runAsNonRoot`
-* Explicit UID/GID
-* `allowPrivilegeEscalation: false`
-* All capabilities dropped
-* `seccompProfile: RuntimeDefault`
-* Read-only root filesystem
-* Temporary `/tmp` volume
+```bash
+kubectl apply -f k8s/service.yaml
+```
+
+Apply the NetworkPolicy:
+
+```bash
+kubectl apply -f k8s/network-policy.yaml
+```
 
 Check the Deployment:
 
 ```bash
-kubectl get deployment flask-app -n flask-app
+kubectl get deployment -n flask-app
 ```
 
 Check the pods:
@@ -366,45 +476,113 @@ Check the pods:
 kubectl get pods -n flask-app -o wide
 ```
 
-## Kubernetes Service
-
-Apply the Service:
-
-```bash
-kubectl apply -f k8s/service.yaml
-```
-
 Check the Service:
 
 ```bash
 kubectl get service -n flask-app
 ```
 
-The Service is a `ClusterIP` service exposing port `5000`.
+Check the NetworkPolicy:
 
-Check service endpoints:
+```bash
+kubectl get networkpolicy -n flask-app
+```
+
+## 15. Kubernetes Security
+
+The Kubernetes Deployment uses:
+
+```yaml
+runAsNonRoot: true
+runAsUser: 1000
+runAsGroup: 1000
+seccompProfile:
+  type: RuntimeDefault
+```
+
+The container also uses:
+
+```yaml
+allowPrivilegeEscalation: false
+capabilities:
+  drop:
+    - ALL
+readOnlyRootFilesystem: true
+```
+
+Resource requests and limits are configured:
+
+```text
+CPU request:    100m
+CPU limit:      500m
+Memory request: 128Mi
+Memory limit:   256Mi
+```
+
+Readiness and liveness probes check:
+
+```text
+/
+port 5000
+```
+
+Verify the security configuration:
+
+```bash
+kubectl get deployment flask-app -n flask-app -o yaml
+```
+
+Verify the application user:
+
+```bash
+kubectl exec -n flask-app deploy/flask-app -- whoami
+```
+
+Expected:
+
+```text
+appuser
+```
+
+## 16. Kubernetes Service and Application Access
+
+The application uses a ClusterIP Service:
+
+```text
+flask-service
+```
+
+Port:
+
+```text
+5000
+```
+
+Check endpoints:
 
 ```bash
 kubectl get endpoints -n flask-app
 ```
 
-The Service provides stable internal access to the Flask application while Kubernetes distributes traffic across available pods.
-
-### Port Forwarding
-
-Forward the Kubernetes Service to the local machine:
+Port-forward the Service:
 
 ```bash
 kubectl port-forward service/flask-service 8080:5000 -n flask-app
 ```
 
-The application can then be accessed at:
+Access:
 
 ```text
 http://localhost:8080/
 ```
 
-## Kubernetes NetworkPolicy
+Expected:
+
+```text
+Hello, Flask!
+```
+
+## 17. NetworkPolicy
 
 The project includes:
 
@@ -412,7 +590,7 @@ The project includes:
 k8s/network-policy.yaml
 ```
 
-Apply it with:
+Apply:
 
 ```bash
 kubectl apply -f k8s/network-policy.yaml
@@ -424,35 +602,47 @@ Verify:
 kubectl get networkpolicy -n flask-app
 ```
 
-The policy defines ingress rules for TCP port `5000`.
+The policy allows ingress to TCP port `5000`.
 
-NetworkPolicy enforcement depends on the networking implementation used by the cluster. The policy object being accepted by the Kubernetes API does not by itself prove that the local Kind networking environment enforces every NetworkPolicy rule. The evidence therefore records the policy configuration separately.
+### Known limitation
 
-## Distributed Systems Demonstrations
+NetworkPolicy enforcement depends on the Kubernetes networking/CNI implementation.
 
-### Multiple Replicas
+The fact that Kubernetes accepts the NetworkPolicy object does not by itself prove that traffic filtering is enforced.
 
-The Deployment runs multiple Flask replicas:
+The local Kind environment should therefore be treated as having the policy configured, while enforcement should be tested with an enforcing CNI before using the configuration as a production security control.
+
+## 18. Distributed Behavior
+
+### Multiple replicas
+
+The final Deployment uses three replicas:
 
 ```bash
 kubectl get pods -n flask-app -o wide
 ```
 
-The pods can be scheduled across the two worker nodes.
+The final pods were distributed across the two worker nodes.
 
-### Self-Healing
+### Self-healing
 
-A running pod was deleted manually:
+Delete a running pod:
 
 ```bash
 kubectl delete pod <pod-name> -n flask-app
 ```
 
-Kubernetes automatically created a replacement pod to maintain the desired replica count.
+Then check:
+
+```bash
+kubectl get pods -n flask-app -o wide
+```
+
+Kubernetes automatically creates a replacement pod to restore the desired replica count.
 
 ### Scaling
 
-The application was scaled from 2 replicas to 3 replicas:
+Scale from two to three replicas:
 
 ```bash
 kubectl scale deployment flask-app --replicas=3 -n flask-app
@@ -465,21 +655,23 @@ kubectl get deployment flask-app -n flask-app
 kubectl get pods -n flask-app -o wide
 ```
 
-### Rolling Update
+### Rolling update
 
-A rolling update was demonstrated by updating the application image:
+The rolling update demonstration used the `latest` image:
 
 ```bash
-kubectl set image deployment/flask-app flask-app=sirajuddin147/flask-sample-app:latest -n flask-app
+kubectl set image deployment/flask-app \
+flask-app=sirajuddin147/flask-sample-app:latest \
+-n flask-app
 ```
 
-Monitor the rollout:
+Monitor:
 
 ```bash
 kubectl rollout status deployment/flask-app -n flask-app
 ```
 
-View rollout history:
+View history:
 
 ```bash
 kubectl rollout history deployment/flask-app -n flask-app
@@ -487,52 +679,59 @@ kubectl rollout history deployment/flask-app -n flask-app
 
 ### Rollback
 
-A rollback was also demonstrated:
+Rollback:
 
 ```bash
 kubectl rollout undo deployment/flask-app -n flask-app
 ```
 
-After the demonstration, the final deployment was restored to the versioned image:
-
-```text
-sirajuddin147/flask-sample-app:1.0.0
-```
-
-Verify the final image:
+Verify:
 
 ```bash
-kubectl get deployment flask-app -n flask-app -o jsonpath="{.spec.template.spec.containers[0].image}"
+kubectl rollout status deployment/flask-app -n flask-app
 ```
 
-Expected:
+The final deployment was explicitly restored to the versioned image:
 
 ```text
 sirajuddin147/flask-sample-app:1.0.0
 ```
 
-## Evidence
+Verify:
 
-Command outputs and deployment evidence are stored in:
+```bash
+kubectl get deployment flask-app -n flask-app \
+-o jsonpath="{.spec.template.spec.containers[0].image}"
+```
+
+## 19. Evidence
+
+Supporting evidence is stored in:
 
 ```text
 evidence/screenshots-or-command-output/
 ```
 
-Important evidence includes:
+The evidence includes:
 
-* Kind cluster nodes
-* Kubernetes deployment configuration
-* Kubernetes security configuration
-* Pods and node placement
+* Kind node information
+* Deployment configuration
+* Deployment security configuration
+* Pod information
 * Service configuration
 * NetworkPolicy
 * Rollout history
-* Final Kubernetes image
+* Final image
 
-## Cleanup
+Security evidence is stored in:
 
-Remove the Kubernetes application:
+```text
+security/
+```
+
+## 20. Cleanup
+
+Delete the application namespace:
 
 ```bash
 kubectl delete namespace flask-app
@@ -550,15 +749,11 @@ Stop Docker Compose:
 docker compose down
 ```
 
-Remove unused local containers if required:
+## 21. Git Repository
 
-```bash
-docker container prune
-```
+GitHub repository:
 
-## Git
-
-The project is maintained using Git with separate commits for the initial application and the Docker/Kubernetes work.
+https://github.com/siraj-tech147/msc-de1-distributed-systems-docker-k8s
 
 Check repository status:
 
@@ -568,10 +763,12 @@ git status
 
 The final working tree should be clean before submission.
 
-## Author
+## 22. Production Improvement
 
-Sirajuddin Shaik
+For a production deployment, the in-memory item list should be replaced with a persistent external database.
 
-## License
+This would prevent application data from being lost when Kubernetes recreates a pod. Production deployment should also add centralized logging, metrics, monitoring, and an enforcing Kubernetes networking solution.
+
+## 23. License
 
 This project is provided for educational purposes under the included MIT License.
